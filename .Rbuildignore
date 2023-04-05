@@ -1,0 +1,11 @@
+^data$
+^outputs$
+^figures$
+^analyses$
+^CompileTraits\.Rproj$
+^\.Rproj\.user$
+^\.DS_Store$
+^LICENSE\.md$
+^make\.R$
+^README\.Rmd$
+^README\.html$
