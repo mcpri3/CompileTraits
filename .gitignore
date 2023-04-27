@@ -16,9 +16,11 @@
 # R Environment Variables ----
 .Renviron
 
+# data files
+data/*
+
 # User-specific files ----
 README.html
 inst/doc
 
-# data files
-data/*
+

@@ -1,6 +1,6 @@
 Package: CompileTraits
 Type: Package
-Title: The Title of the Project
+Title: Scripts to associate traits to SNAP species 
 Version: 0.0.0.9000
 Authors@R: c(
     person(given   = "Marie-Caroline",
@@ -8,8 +8,7 @@ Authors@R: c(
            role    = c("aut", "cre", "cph"),
            email   = "marie-caroline.prima@univ-grenoble-alpes.fr",
            comment = c(ORCID = "")))
-Description: A paragraph providing a full description of the project (on 
-    several lines...)
+Description: Combines different databases of traits and assigned traits to each species
 URL: https://github.com/mcpri3/CompileTraits
 BugReports: https://github.com/mcpri3/CompileTraits/issues
 License: GPL (>= 2)
@@ -20,13 +19,13 @@ Imports:
     ade4,
     adespatial,
     ape,
+    arakno,
     cellranger,
     cowplot,
     data.table,
     devtools,
     doBy,
     dplyr,
-    easyGgplot2,
     FD,
     gdata,
     ggplot2,

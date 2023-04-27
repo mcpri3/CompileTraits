@@ -1,8 +1,8 @@
 #' CompileTraits: A Research Compendium
 #' 
 #' @description 
-#' A paragraph providing a full description of the project and describing each 
-#' step of the workflow.
+#' Combines different databases on species traits and assigned traits to patrimonial french species 
+#' 
 #' 
 #' @author Marie-Caroline Prima \email{marie-caroline.prima@univ-grenoble-alpes.fr}
 #' 

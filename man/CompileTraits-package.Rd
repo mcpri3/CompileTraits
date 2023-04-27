@@ -4,9 +4,9 @@
 \name{CompileTraits-package}
 \alias{CompileTraits}
 \alias{CompileTraits-package}
-\title{CompileTraits: The Title of the Project}
+\title{CompileTraits: Scripts to associate traits to SNAP species}
 \description{
-A paragraph providing a full description of the project (on several lines...)
+Combines different databases of traits and assigned traits to each species
 }
 \seealso{
 Useful links:
