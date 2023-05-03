@@ -1,6 +1,6 @@
 #' Function to combine trait databases on mammals, birds, reptiles and amphibians of Europe.
 #'
-#' @return A database with common traits from the four groups. See W. Thuiller et al., 2015, Philosophical Transactions of the Royal Society B: Biological Sciences
+#' @return A database with common traits for the four groups. See W. Thuiller et al., 2015, Philosophical Transactions of the Royal Society B: Biological Sciences
 #' for details on trait identification
 #' @export
 #'

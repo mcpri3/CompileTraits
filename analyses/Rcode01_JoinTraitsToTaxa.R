@@ -34,7 +34,7 @@ myData.sp$CD_REF_SPE_LEVEL <- myData.sp$CD_REF_V16TAXREF
 myData.sp$LB_NOM_VALIDE_SPE_LEVEL <- myData.sp$LB_NOM_VALIDE
 
 myData <- rbind(myData.sp, toupdate)
-openxlsx::write.xlsx(myData, here::here('data/Original/Taxa/SNAPTaxons_Representativite_Mlx_SpeciesLevel.xlsx'))
+# openxlsx::write.xlsx(myData, here::here('data/Modified/SNAPTaxons_Representativite_Mlx_SpeciesLevel.xlsx'))
 myData <- myData[, c("GROUP2_INPN", "GROUP3_INPN","CD_REF_SPE_LEVEL","LB_NOM_VALIDE_SPE_LEVEL")]
 myData <- dplyr::distinct(myData)
 myData <- myData[!is.na(myData$CD_REF_SPE_LEVEL),]
@@ -69,13 +69,13 @@ comb <- rbind(comb1, comb2)
 comb <- dplyr::distinct(comb)
 
 # Check if synonyms are available and could help adding some traits 
-syn <- check_syn(mammals$SpeciesName, comb$species)
-syn$inDB <- syn$Synonym %in% comb$species
-syn <- syn[syn$inDB, ]
-
-syn <- check_syn(mammals$NAME_IUCN, comb$species)
-syn$inDB <- syn$Synonym %in% comb$species
-syn <- syn[syn$inDB, ]
+# syn <- check_syn(mammals$SpeciesName, comb$species)
+# syn$inDB <- syn$Synonym %in% comb$species
+# syn <- syn[syn$inDB, ]
+# 
+# syn <- check_syn(mammals$NAME_IUCN, comb$species)
+# syn$inDB <- syn$Synonym %in% comb$species
+# syn <- syn[syn$inDB, ]
 
 syn <- check_syn(mammals$OldSpeciesName_Maiorano, comb$species)
 syn$inDB <- syn$Synonym %in% comb$species
@@ -109,11 +109,11 @@ escoriza <- escoriza[, c("Species", "dispersal_km")]
 idx <- is.na(reptiles$NAME_IUCN)
 reptiles$NAME_IUCN[idx] <- reptiles$SpeciesName[idx]
 syn <- check_syn(reptiles$NAME_IUCN, escoriza$Species)
-reptiles$NAME_IUCN[idx] <- NA
 syn$inDB <- syn$Synonym %in% escoriza$Species
 syn <- syn[syn$inDB, ]
 reptiles <- dplyr::left_join(reptiles, syn[, c('Species','Synonym')], by = c('NAME_IUCN' = 'Species') )
 reptiles$Species_Syn <- ifelse(is.na(reptiles$Synonym), reptiles$NAME_IUCN, reptiles$Synonym)
+reptiles$NAME_IUCN[idx] <- NA
 
 # Check other name columns
 idx = !(reptiles$Species_Syn %in% escoriza$Species)
@@ -167,18 +167,16 @@ colnames(trochet)[2] <- 'dispersal_km'
 idx <- is.na(amphi$NAME_IUCN)
 amphi$NAME_IUCN[idx] <- amphi$SpeciesName[idx]
 syn <- check_syn(amphi$NAME_IUCN, trochet$Species)
-amphi$NAME_IUCN[idx] <- NA
 syn$inDB <- syn$Synonym %in% trochet$Species
 syn <- syn[syn$inDB, ]
 amphi <- dplyr::left_join(amphi, syn[, c('Species','Synonym')], by = c('NAME_IUCN'='Species'))
 amphi$Species_Syn <- ifelse(is.na(amphi$Synonym), amphi$NAME_IUCN, amphi$Synonym)
+amphi$NAME_IUCN[idx] <- NA
 
 # Check other name columns
 idx = !(amphi$Species_Syn %in% trochet$Species)
 sum(amphi$SpeciesName[idx] %in% trochet$Species)
 sum(amphi$OldSpeciesName_Maiorano[idx] %in% trochet$Species)
-# update
-amphi$Species_Syn[amphi$SpeciesName == "Pelophylax esculentus"] <- "Pelophylax esculentus"
 
 # Join to species list
 amphi <- dplyr::left_join(amphi, trochet, by = c("Species_Syn"="Species"))
@@ -211,15 +209,17 @@ vert.snap <- myData[myData$GROUP2_INPN %in% c('Mammifères', 'Reptiles', 'Amphib
 # syn <- check_syn(vert.snap$LB_NOM_VALIDE_SPE_LEVEL, lst.sp)
 
 # Manually updated species names from comparing 'SpeciesName', 'NAME_IUCN' and 'OldSpeciesName_Maiorano'
-toreplace <- data.frame(LB_NOM_VALIDE_SPE_LEVEL = c("Dryobates minor", "Dendrocopos minor", "Pelophylax kl. grafi", "Lyrurus tetrix", 'Ovis gmelinii',
+toreplace <- data.frame(LB_NOM_VALIDE_SPE_LEVEL = c("Dendrocopos medius", "Dendrocopos minor", "Pelophylax kl. grafi", "Lyrurus tetrix", 'Ovis gmelinii',
                                                    'Bonasa bonasia', 'Muscicapa tyrrhenica', 'Psammodromus edwarsianus'), 
-                       LB_NOM_VALIDE_SPE_LEVEL_SYN = c("Dendrocopos minor", "Dryobates minor", "Pelophylax grafi", "Tetrao tetrix", 'Ovis gmelini', 'Tetrastes bonasia', 
+                       LB_NOM_VALIDE_SPE_LEVEL_SYN = c("Dendrocoptes medius", "Dryobates minor", "Pelophylax grafi", "Tetrao tetrix", 'Ovis gmelini', 'Tetrastes bonasia', 
                                                        'Muscicapa striata', 'Psammodromus edwardsianus'))
 vert.snap <- dplyr::left_join(vert.snap, toreplace, by = c("LB_NOM_VALIDE_SPE_LEVEL"))
 vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN <- ifelse(is.na(vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN), vert.snap$LB_NOM_VALIDE_SPE_LEVEL, vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN)
 
 # Join trait data to SNAP vertebrates 
 vert.snap <- dplyr::left_join(vert.snap, final, by = c("LB_NOM_VALIDE_SPE_LEVEL_SYN" = "SpeciesName"))
+openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-DispDTraits.xlsx'))
+
 
 # # Compare to European species list for NaturaConnect 
 # # Vertebrates only 
