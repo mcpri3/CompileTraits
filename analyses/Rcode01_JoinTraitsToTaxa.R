@@ -135,11 +135,13 @@ mammals <- dplyr::left_join(mammals, comb, by = c("Species_Syn"="species"))
 
 # Add bats info 
 bats <- readr::read_csv(here::here("data/Original/Traits/EuroBaTrait/09_spatial_behaviour.csv"))
-bats <- bats[bats$verbatimTraitName == "DispersalDistances", ]
+bats <- bats[bats$verbatimTraitName %in% c("DispersalDistances","MaxRecordedMovement"), ]
 bats$verbatimScientificName <- gsub('_',' ',bats$verbatimScientificName)
 
 for (s in bats$verbatimScientificName) {
-  mammals$dispersal_km[mammals$SpeciesName %in% s] <- bats$verbatimTraitValue[bats$verbatimScientificName %in% s]
+  val <- bats$verbatimTraitValue[(bats$verbatimScientificName %in% s) & (bats$verbatimTraitName == 'DispersalDistances')]
+  if (length(val) == 0) { val <- bats$verbatimTraitValue[(bats$verbatimScientificName %in% s) & (bats$verbatimTraitName == 'MaxRecordedMovement')]}
+  mammals$dispersal_km[mammals$SpeciesName %in% s] <- val
 }
 
 ############## REPTILES ##################
@@ -270,7 +272,6 @@ vert.snap <- dplyr::left_join(vert.snap, final, by = c("LB_NOM_VALIDE_SPE_LEVEL_
 ##############################
 ### Add pressures 
 ##############################
-vert.snap <- openxlsx::read.xlsx(here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispDTraits.xlsx'))
 
 # get national red list 
 iucn.nat <- openxlsx::read.xlsx(here::here('data/Original/Pressures/LISTE_ROUGE_FAUNE_200916_Table_Menaces_LRN_v2.xlsx'))
@@ -285,26 +286,26 @@ iucn.nat <- iucn.nat[iucn.nat$Code_Menaces != '', ]
 iucn.nat <- iucn.nat[iucn.nat$CD_REF_V16TAXREF %in% c(vert.snap$CD_REF_SPE_LEVEL), ]
 
 # get European red list (to run once)
-lst.sp <- unique(vert.snap$NAME_IUCN[!is.na(vert.snap$NAME_IUCN)])
-press.euro <- data.frame()
-pb <- utils::txtProgressBar(min = 0,      # Minimum value of the progress bar
-                            max = length(lst.sp), # Maximum value of the progress bar
-                            style = 3,    # Progress bar style (also available style = 1 and style = 2)
-                            width = 50,   # Progress bar width. Defaults to getOption("width")
-                            char = "=")
-
-for (s in lst.sp) {
-  
-  thre <- rredlist::rl_threats(name = s, region = 'europe', key = 'd434eb1c13e1c936fe9d9961f7f197ebf4b4c5d2cbd4a2e53608ea965c3f052e')
-  thre <- thre$result
-  thre$NAME_IUCN <- s 
-  if (length(thre)>1) {
-    press.euro <- rbind(press.euro, thre)
-  }
-  utils::setTxtProgressBar(pb, which(s == lst.sp))
-}
-
-openxlsx::write.xlsx(press.euro, here::here('data/Modified/EuropeanRedList_IUCNPressures.xlsx'))
+# lst.sp <- unique(vert.snap$NAME_IUCN[!is.na(vert.snap$NAME_IUCN)])
+# press.euro <- data.frame()
+# pb <- utils::txtProgressBar(min = 0,      # Minimum value of the progress bar
+#                             max = length(lst.sp), # Maximum value of the progress bar
+#                             style = 3,    # Progress bar style (also available style = 1 and style = 2)
+#                             width = 50,   # Progress bar width. Defaults to getOption("width")
+#                             char = "=")
+# 
+# for (s in lst.sp) {
+#   
+#   thre <- rredlist::rl_threats(name = s, region = 'europe', key = 'd434eb1c13e1c936fe9d9961f7f197ebf4b4c5d2cbd4a2e53608ea965c3f052e')
+#   thre <- thre$result
+#   thre$NAME_IUCN <- s 
+#   if (length(thre)>1) {
+#     press.euro <- rbind(press.euro, thre)
+#   }
+#   utils::setTxtProgressBar(pb, which(s == lst.sp))
+# }
+# 
+# openxlsx::write.xlsx(press.euro, here::here('data/Modified/EuropeanRedList_IUCNPressures.xlsx'))
 
 press.euro <- openxlsx::read.xlsx(here::here('data/Modified/EuropeanRedList_IUCNPressures.xlsx'))
 # Extract pressures for SNAP species 
