@@ -24,11 +24,11 @@ trait_matrix <- rbind(traits_A[, colnames(traits_A) %in% common_traits],
                               traits_R[, colnames(traits_R) %in% common_traits])
 
 # Add species name
-sp.code.old <- readr::read_delim("data/Original/Traits/TETRA_EU/species_codes_and_taxonomy.csv", 
+sp.code.old <- readr::read_delim(here::here("data/Original/Traits/TETRA_EU/species_codes_and_taxonomy.csv"), 
                              delim = ";", escape_double = FALSE, trim_ws = TRUE)
 sp.code.old <- sp.code.old[, c('Species ID', 'Species')]
 colnames(sp.code.old)[2] <- 'OldSpeciesName_Maiorano'
-sp.code <- readr::read_delim("data/Original/Taxa/SpeciesList_Correspondances.csv", 
+sp.code <- readr::read_delim(here::here("data/Original/Taxa/SpeciesList_Correspondances.csv"), 
                              delim = ";", escape_double = FALSE, trim_ws = TRUE)
 sp.code <- dplyr::left_join(sp.code, sp.code.old, by = c("Code_old" = "Species ID"))
 trait_matrix <- dplyr::left_join(sp.code, trait_matrix, by = c("Code_old" = "Sp.code" ))

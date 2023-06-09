@@ -1,6 +1,3 @@
-
-# rredlist package 
-
 ################################################
 ######### Prep. lst of SNAP species ############
 ################################################
@@ -11,7 +8,7 @@ colnames(myData)[colnames(myData) == 'CD_REF'] = 'CD_NOM'
 # TAXREF to add the rank
 taxref.full <- utils::read.csv(here::here('data/Original/Taxa/TAXREFv16.csv'), header = T, sep = ";")
 taxref <- taxref.full[taxref.full$CD_NOM %in% myData$CD_NOM, ]
-taxref <- taxref[, c('CD_NOM','CD_REF', 'RANG', 'GROUP3_INPN', 'NOM_VERN')]
+taxref <- taxref[, c('CD_NOM','CD_REF', 'RANG', 'GROUP3_INPN', 'NOM_VERN', 'PHYLUM', 'CLASSE', 'FAMILLE')]
 colnames(taxref)[colnames(taxref) == "CD_REF"] <- "CD_REF_V16TAXREF"
 
 myData <- dplyr::left_join(myData, taxref, by = 'CD_NOM')
@@ -35,7 +32,7 @@ myData.sp$LB_NOM_VALIDE_SPE_LEVEL <- myData.sp$LB_NOM_VALIDE
 
 myData <- rbind(myData.sp, toupdate)
 # openxlsx::write.xlsx(myData, here::here('data/Modified/SNAPTaxons_Representativite_Mlx_SpeciesLevel.xlsx'))
-myData <- myData[, c("GROUP2_INPN", "GROUP3_INPN","CD_REF_SPE_LEVEL","LB_NOM_VALIDE_SPE_LEVEL")]
+myData <- myData[, c("PHYLUM","CLASSE","FAMILLE","ORDRE","GROUP2_INPN", "GROUP3_INPN","CD_REF_SPE_LEVEL","LB_NOM_VALIDE_SPE_LEVEL")]
 myData <- dplyr::distinct(myData)
 myData <- myData[!is.na(myData$CD_REF_SPE_LEVEL),]
 
@@ -51,6 +48,48 @@ vert.trait <- vert.trait[!is.na(vert.trait$Opportunistic),]
 vert.trait <- vert.trait[!is.na(vert.trait$Arithmic),]
 vert.trait <- vert.trait[!is.na(vert.trait$Ground),]
 sum(is.na(vert.trait$Body_length_max_.cm.) & is.na(vert.trait$BodyMass))
+
+colnames(vert.trait)[colnames(vert.trait) %in% c("Mushrooms", "Mosses.Lichens","Seeds.Nuts.Grains","Fruits.Berries" ,               
+                                                 "Vegitative","Invert","Fish" ,"Small_Mam","Large_Mam","Herptile" ,                      
+                                                 "Bird_eggs","Small_bird", "Large_Bird" ,                    
+                                                 "Vertebrate" ,"Bones","Carrion","Coprofagus" )] <- 
+                                                  paste0('diet.', c("Mushrooms", "Mosses.Lichens","Seeds.Nuts.Grains",
+                                                                    "Fruits.Berries" ,"Vegitative","Invert","Fish" ,
+                                                                    "Small_Mam","Large_Mam","Herptile" , "Bird_eggs",
+                                                                    "Small_bird", "Large_Bird" , "Vertebrate" ,
+                                                                    "Bones","Carrion","Coprofagus" ))
+
+colnames(vert.trait)[colnames(vert.trait) %in% c("Opportunistic","Hunting", "Browser", "Grazer")] <- paste0('forag.strat.', c("Opportunistic","Hunting", "Browser", "Grazer"))
+colnames(vert.trait)[colnames(vert.trait) %in% c("Nocturnal", "Crepuscolar", "Diurnal", "Arithmic")] <- paste0('act.time.', c("Nocturnal", "Crepuscolar", "Diurnal", "Arithmic"))
+colnames(vert.trait)[colnames(vert.trait) %in% c("Body_length_max_.cm.")] <- 'morpho.Body_length_max_.cm.'
+colnames(vert.trait)[colnames(vert.trait) %in% c("BodyMass")] <- 'morpho.BodyMass'
+colnames(vert.trait)[colnames(vert.trait) %in% c("Tree_hole.fissure_in_the_bark", "Ground", "Rocks", "Building.Artificial" , "Underground_water",              
+                                                 "Cave.Fissures.Borrows", "Lodge", "Temporary_water" ,"Brooks.springs.small_rivers", 
+                                                 "Puddles.ponds.pools.small_lakes", "Brackish_waters" )] <- 
+                                                  paste0('nest.hab.', c("Tree_hole.fissure_in_the_bark", "Ground", "Rocks", 
+                                                                       "Building.Artificial" , "Underground_water", "Cave.Fissures.Borrows", 
+                                                                       "Lodge", "Temporary_water" ,"Brooks.springs.small_rivers", 
+                                                                        "Puddles.ponds.pools.small_lakes", "Brackish_waters" ))
+
+
+
+
+#################################
+# Habitat preference
+#################################
+hab.pref <- readr::read_csv("data/Original/Traits/HabitatPreference/SpeciesHabitatsPreferences_Yue.csv")
+corresp.code <- readr::read_delim("data/Original/Traits/HabitatPreference/LandUseCodesCorrespondance_Yue_HabitatPreferences.csv", 
+                                  delim = ";", escape_double = FALSE, trim_ws = TRUE)
+hab.pref.up <- hab.pref
+for (i in c(6:34)) {
+  colnames(hab.pref.up)[i] <- corresp.code$YueRaster[corresp.code$Louise == colnames(hab.pref.up)[i]]
+} 
+
+hab.pref.up <- hab.pref.up[, c(5:34)]
+colnames(hab.pref.up)[2:30] <- paste0('hab.pref.',colnames(hab.pref.up)[2:30])
+
+# Join to trait DB 
+vert.trait <- dplyr::left_join(vert.trait, hab.pref.up, by = c('Code_old' = 'SppID'))
 
 #################################
 # Dispersal distance
@@ -94,6 +133,14 @@ mammals$Species_Syn[idx] <- mammals$NAME_IUCN[idx]
 # Join to species list
 mammals <- dplyr::left_join(mammals, comb, by = c("Species_Syn"="species"))
 
+# Add bats info 
+bats <- readr::read_csv(here::here("data/Original/Traits/EuroBaTrait/09_spatial_behaviour.csv"))
+bats <- bats[bats$verbatimTraitName == "DispersalDistances", ]
+bats$verbatimScientificName <- gsub('_',' ',bats$verbatimScientificName)
+
+for (s in bats$verbatimScientificName) {
+  mammals$dispersal_km[mammals$SpeciesName %in% s] <- bats$verbatimTraitValue[bats$verbatimScientificName %in% s]
+}
 
 ############## REPTILES ##################
 reptiles <- vert.trait[vert.trait$Class == 'Reptilia',]
@@ -186,6 +233,7 @@ col.tokeep <- intersect(colnames(mammals), colnames(birds))
 final <- rbind(mammals[, col.tokeep], birds[, col.tokeep], amphi[, col.tokeep], reptiles[, col.tokeep])
 final <- final[, !(colnames(final) %in% 'Species_Syn')]
 
+# Calculate averaged disp. dist. when several available
 idx <- table(final$SpeciesName)
 toclean <- final[!(final$SpeciesName %in% names(idx)[idx == 1]),]
 final <- final[final$SpeciesName %in% names(idx)[idx == 1],]
@@ -218,28 +266,105 @@ vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN <- ifelse(is.na(vert.snap$LB_NOM_VALIDE_SP
 
 # Join trait data to SNAP vertebrates 
 vert.snap <- dplyr::left_join(vert.snap, final, by = c("LB_NOM_VALIDE_SPE_LEVEL_SYN" = "SpeciesName"))
-openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-DispDTraits.xlsx'))
 
+##############################
+### Add pressures 
+##############################
+vert.snap <- openxlsx::read.xlsx(here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispDTraits.xlsx'))
 
-# # Compare to European species list for NaturaConnect 
-# # Vertebrates only 
-# euro <- readr::read_csv("data/Original/Taxa/EU_species_RedList_Art12_Art17.csv")
-# euro <- euro[euro$Class %in% c('MAMMALIA', 'REPTILIA', 'AMPHIBIA','AVES'),]
-# syn <- check_syn(vert.snap$LB_NOM_VALIDE_SPE_LEVEL, euro$speciesname.EU.RedList)
-# syn$inDB <- syn$Synonym %in% euro$speciesname.EU.RedList
-# syn <- syn[syn$inDB, ]
-# vert.snap <- dplyr::left_join(vert.snap, syn[, c('Species','Synonym')], by = c("LB_NOM_VALIDE_SPE_LEVEL" = "Species"))
-# vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN <- ifelse(is.na(vert.snap$Synonym), vert.snap$LB_NOM_VALIDE_SPE_LEVEL, vert.snap$Synonym)
-# vert.snap$inEuropeList <- vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN %in% euro$speciesname.EU.RedList
-# 
-# # All taxa
-# euro <- readr::read_csv("data/Original/Taxa/EU_species_RedList_Art12_Art17.csv")
-# syn <- check_syn(myData$LB_NOM_VALIDE_SPE_LEVEL, euro$speciesname.EU.RedList)
-# syn$inDB <- syn$Synonym %in% euro$speciesname.EU.RedList
-# syn <- syn[syn$inDB, ]
-# myData <- dplyr::left_join(myData, syn[, c('Species','Synonym')], by = c("LB_NOM_VALIDE_SPE_LEVEL" = "Species"))
-# myData$LB_NOM_VALIDE_SPE_LEVEL_SYN <- ifelse(is.na(myData$Synonym), myData$LB_NOM_VALIDE_SPE_LEVEL, myData$Synonym)
-# myData$inEuropeList <- myData$LB_NOM_VALIDE_SPE_LEVEL_SYN %in% euro$speciesname.EU.RedList
+# get national red list 
+iucn.nat <- openxlsx::read.xlsx(here::here('data/Original/Pressures/LISTE_ROUGE_FAUNE_200916_Table_Menaces_LRN_v2.xlsx'))
+# TAXREF to add species name and CD_REF
+taxref.full <- utils::read.csv(here::here('data/Original/Taxa/TAXREFv16.csv'), header = T, sep = ";")
+taxref <- taxref.full[taxref.full$CD_NOM %in% iucn.nat$CD_NOM, ]
+taxref <- taxref[, c('CD_NOM','CD_REF')]
+colnames(taxref)[colnames(taxref) == "CD_REF"] <- "CD_REF_V16TAXREF"
+iucn.nat <- dplyr::left_join(iucn.nat, taxref, by = 'CD_NOM')
+iucn.nat <- iucn.nat[!is.na(iucn.nat$CD_REF_V16TAXREF),]
+iucn.nat <- iucn.nat[iucn.nat$Code_Menaces != '', ]
+iucn.nat <- iucn.nat[iucn.nat$CD_REF_V16TAXREF %in% c(vert.snap$CD_REF_SPE_LEVEL), ]
+
+# get European red list (to run once)
+lst.sp <- unique(vert.snap$NAME_IUCN[!is.na(vert.snap$NAME_IUCN)])
+press.euro <- data.frame()
+pb <- utils::txtProgressBar(min = 0,      # Minimum value of the progress bar
+                            max = length(lst.sp), # Maximum value of the progress bar
+                            style = 3,    # Progress bar style (also available style = 1 and style = 2)
+                            width = 50,   # Progress bar width. Defaults to getOption("width")
+                            char = "=")
+
+for (s in lst.sp) {
+  
+  thre <- rredlist::rl_threats(name = s, region = 'europe', key = 'd434eb1c13e1c936fe9d9961f7f197ebf4b4c5d2cbd4a2e53608ea965c3f052e')
+  thre <- thre$result
+  thre$NAME_IUCN <- s 
+  if (length(thre)>1) {
+    press.euro <- rbind(press.euro, thre)
+  }
+  utils::setTxtProgressBar(pb, which(s == lst.sp))
+}
+
+openxlsx::write.xlsx(press.euro, here::here('data/Modified/EuropeanRedList_IUCNPressures.xlsx'))
+
+press.euro <- openxlsx::read.xlsx(here::here('data/Modified/EuropeanRedList_IUCNPressures.xlsx'))
+# Extract pressures for SNAP species 
+agri <- c('2.1','2.1.1','2.1.2','2.1.3','2.1.4','2.3','2.3.1','2.3.2','2.3.3','2.3.4')
+sylvi <- c('5.3','5.3.1','5.3.2','5.3.3','5.3.4', '2.2','2.2.1','2.2.2','2.2.3')
+urba <- c('1','1.1','1.2','1.3')
+lin.struc <- c('4.1','4.3')
+cc <- c('11.2', '11.3','11.4')
+
+vert.snap$pressure.agri <- NA
+vert.snap$pressure.sylvi <- NA
+vert.snap$pressure.urba <- NA
+vert.snap$pressure.lin_struc <- NA
+vert.snap$pressure.cc <- NA
+
+for (s in vert.snap$CD_REF_SPE_LEVEL) {
+  
+  subdata <- iucn.nat[iucn.nat$CD_REF_V16TAXREF == s,]
+  
+  if (nrow(subdata)>0) {
+    
+    vert.snap$pressure.agri[vert.snap$CD_REF_SPE_LEVEL %in% s] <- sum(subdata$Code_Menaces %in% agri)
+    vert.snap$pressure.agri[vert.snap$CD_REF_SPE_LEVEL %in% s] <- ifelse(vert.snap$pressure.agri[vert.snap$CD_REF_SPE_LEVEL %in% s]>0, 1, 0)
+    vert.snap$pressure.sylvi[vert.snap$CD_REF_SPE_LEVEL %in% s] <- sum(subdata$Code_Menaces %in% sylvi)
+    vert.snap$pressure.sylvi[vert.snap$CD_REF_SPE_LEVEL %in% s] <- ifelse(vert.snap$pressure.sylvi[vert.snap$CD_REF_SPE_LEVEL %in% s]>0, 1, 0)
+    vert.snap$pressure.urba[vert.snap$CD_REF_SPE_LEVEL %in% s] <- sum(subdata$Code_Menaces %in% urba)
+    vert.snap$pressure.urba[vert.snap$CD_REF_SPE_LEVEL %in% s] <- ifelse(vert.snap$pressure.urba[vert.snap$CD_REF_SPE_LEVEL %in% s]>0, 1, 0)
+    vert.snap$pressure.lin_struc[vert.snap$CD_REF_SPE_LEVEL %in% s] <- sum(subdata$Code_Menaces %in% lin.struc)
+    vert.snap$pressure.lin_struc[vert.snap$CD_REF_SPE_LEVEL %in% s] <- ifelse(vert.snap$pressure.lin_struc[vert.snap$CD_REF_SPE_LEVEL %in% s]>0, 1, 0)
+    vert.snap$pressure.cc[vert.snap$CD_REF_SPE_LEVEL %in% s] <- sum(subdata$Code_Menaces %in% cc)
+    vert.snap$pressure.cc[vert.snap$CD_REF_SPE_LEVEL %in% s] <- ifelse(vert.snap$pressure.cc[vert.snap$CD_REF_SPE_LEVEL %in% s]>0, 1, 0)
+    
+  }
+    
+  nme <- vert.snap$NAME_IUCN[vert.snap$CD_REF_SPE_LEVEL == s]
+    
+    if (!is.na(nme)) {
+      
+    subdata <- press.euro[press.euro$NAME_IUCN == nme,]
+    
+    if (nrow(subdata)>0) {
+      
+      vert.snap$pressure.agri[vert.snap$NAME_IUCN %in% nme] <- sum(na.omit(c(subdata$code %in% agri, vert.snap$pressure.agri[vert.snap$NAME_IUCN %in% nme])))
+      vert.snap$pressure.agri[vert.snap$NAME_IUCN %in% nme] <- ifelse(vert.snap$pressure.agri[vert.snap$NAME_IUCN %in% nme]>0, 1, 0)
+      vert.snap$pressure.sylvi[vert.snap$NAME_IUCN %in% nme] <- sum(na.omit(c(subdata$code %in% sylvi, vert.snap$pressure.sylvi[vert.snap$NAME_IUCN %in% nme])))
+      vert.snap$pressure.sylvi[vert.snap$NAME_IUCN %in% nme] <- ifelse(vert.snap$pressure.sylvi[vert.snap$NAME_IUCN %in% nme]>0, 1, 0)
+      vert.snap$pressure.urba[vert.snap$NAME_IUCN %in% nme] <- sum(na.omit(c(subdata$code %in% urba, vert.snap$pressure.urba[vert.snap$NAME_IUCN %in% nme])))
+      vert.snap$pressure.urba[vert.snap$NAME_IUCN %in% nme] <- ifelse(vert.snap$pressure.urba[vert.snap$NAME_IUCN %in% nme]>0, 1, 0)
+      vert.snap$pressure.lin_struc[vert.snap$NAME_IUCN %in% nme] <- sum(na.omit(c(subdata$code %in% lin.struc, vert.snap$pressure.lin_struc[vert.snap$NAME_IUCN %in% nme])))
+      vert.snap$pressure.lin_struc[vert.snap$NAME_IUCN %in% nme] <- ifelse(vert.snap$pressure.lin_struc[vert.snap$NAME_IUCN %in% nme]>0, 1, 0)
+      vert.snap$pressure.cc[vert.snap$NAME_IUCN %in% nme] <- sum(na.omit(c(subdata$code %in% cc, vert.snap$pressure.cc[vert.snap$NAME_IUCN %in% nme])))
+      vert.snap$pressure.cc[vert.snap$NAME_IUCN %in% nme] <- ifelse(vert.snap$pressure.cc[vert.snap$NAME_IUCN %in% nme]>0, 1, 0)
+      
+    }
+    
+    }
+  }
+
+openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-PressureTraits.xlsx'))
+
 
 #######################################
 # OTHER DATABASES NOT USED 
