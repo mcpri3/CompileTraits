@@ -91,19 +91,27 @@ colnames(hab.pref.up)[2:30] <- paste0('hab.pref.',colnames(hab.pref.up)[2:30])
 # Join to trait DB 
 vert.trait <- dplyr::left_join(vert.trait, hab.pref.up, by = c('Code_old' = 'SppID'))
 
-#################################
-# Dispersal distance
-#################################
+######################################
+# Dispersal distance & movement mode
+######################################
 
 ########### MAMMALS ###############
 mammals <- vert.trait[vert.trait$Class == 'Mammalia',]
 
 # Prep. COMBINE ; mammals
 comb <- readr::read_csv(here::here("data/Original/Traits/COMBINE/trait_data_imputed.csv"))
-comb1 <- comb[, c('iucn2020_binomial', "dispersal_km" )]
-colnames(comb1) <- c('species', 'dispersal_km')
-comb2 <- comb[, c('phylacine_binomial', "dispersal_km" )]
-colnames(comb2) <- c('species', 'dispersal_km')
+comb$crawler <- 0
+comb$flier <- ifelse(comb$terrestrial_volant == 1, 1, 0)
+comb$walker <- ifelse(comb$`terrestrial_non-volant` == 1, 1, 0)
+comb$runner <- ifelse(comb$`terrestrial_non-volant` == 1, 1, 0)
+comb$swimmer <- ifelse(comb$`terrestrial_non-volant` == 1 & (comb$marine == 1 |comb$freshwater == 1), 1, 0)
+comb$jumper <- NA
+comb$climber <- NA
+
+comb1 <- comb[, c('iucn2020_binomial', "dispersal_km", 'crawler', 'flier', 'walker','runner','swimmer','jumper','climber')]
+colnames(comb1) <- c('species', 'dispersal_km', 'crawler', 'flier', 'walker','runner','swimmer','jumper','climber')
+comb2 <- comb[, c('phylacine_binomial', "dispersal_km", 'crawler', 'flier', 'walker','runner','swimmer','jumper','climber' )]
+colnames(comb2) <- c('species', 'dispersal_km', 'crawler', 'flier', 'walker','runner','swimmer','jumper','climber')
 comb <- rbind(comb1, comb2)
 comb <- dplyr::distinct(comb)
 
@@ -172,6 +180,37 @@ sum(reptiles$OldSpeciesName_Maiorano[idx] %in% escoriza$Species)
 # Join to species list
 reptiles <- dplyr::left_join(reptiles, escoriza, by = c("Species_Syn"="Species"))
 
+#### Add movement mode from another DB Grimm et al. 2015 #####
+mmode <- readxl::read_excel(here::here("data/Original/Traits/ReptileTraits/Movement Query.xlsx"))
+mmode <- mmode[!is.na(mmode$Locomotion),]
+loco <- reshape2::colsplit(mmode$Locomotion, '; ', c('loco1','loco2'))
+loco <- rbind(data.frame(sp.nme = mmode$`Species name SEH`, loco), data.frame(sp.nme = mmode$`Current species name`, loco))
+loco <- dplyr::distinct(loco)
+loco$crawler <- NA
+loco$flier <- 0
+loco$walker <- NA
+loco$runner <- NA
+loco$swimmer <- NA
+loco$jumper <- NA
+loco$climber <- NA
+mmodes <- c('crawler', 'flier','walker','runner','swimmer','jumper','climber')
+
+for (i in 1:nrow(loco)) {
+  val <- (mmodes  %in% loco$loco1[i]) + (mmodes %in% loco$loco2[i]) 
+  loco[i, colnames(loco) %in% mmodes] <- val
+}
+loco <- loco[, !colnames(loco) %in% c('loco1','loco2')]
+
+final = data.frame()
+for (s in unique(loco$sp.nme)) {
+  sub <- loco[loco$sp.nme %in% s, mmodes]
+  sub <- sapply(sub, sum)
+  final <- rbind(final, data.frame(sp.nme = s, t(sub)))
+}
+
+# Synonyms ok 
+reptiles <- dplyr::left_join(reptiles, final, by = c("Species_Syn"="sp.nme"))
+
 ############ BIRDS ################
 birds <- vert.trait[vert.trait$Class == 'Aves',]
 
@@ -182,18 +221,18 @@ avonet2 <- readxl::read_excel(here::here("data/Original/Traits/AVONET/AVONET2_eB
                               sheet = "AVONET2_eBird")
 avonet3 <- readxl::read_excel(here::here("data/Original/Traits/AVONET/AVONET3_BirdTree.xlsx"), 
                               sheet = "AVONET3_BirdTree")
-col.tokeep <- c( "Hand-Wing.Index")
+col.tokeep <- c( "Hand-Wing.Index", "Habitat")
 avonet1 <- avonet1[, c('Species1', col.tokeep)]
 avonet2 <- avonet2[, c('Species2', col.tokeep)]
 avonet3 <- avonet3[, c('Species3', col.tokeep)]
-newcolnms <- c('Species', 'HWI')
+newcolnms <- c('Species', 'HWI', 'Habitat')
 colnames(avonet1) <- newcolnms
 colnames(avonet2) <- newcolnms
 colnames(avonet3) <- newcolnms
 avonet <- rbind(avonet1, avonet2, avonet3)
 avonet <- dplyr::distinct(avonet)
 avonet$dispersal_km <- exp(2.70 + 0.86 * (avonet$HWI - mean(avonet$HWI))/(2*sd(avonet$HWI)))
-avonet <- avonet[, c('Species', 'dispersal_km')]
+avonet <- avonet[, c('Species', 'dispersal_km', 'Habitat')]
 
 # No need to check syn because they are all in avonet
 birds$Species_Syn <- birds$SpeciesName
@@ -201,12 +240,22 @@ birds$Species_Syn <- birds$SpeciesName
 # Join to species list
 birds <- dplyr::left_join(birds, avonet, by = c("Species_Syn"="Species"))
 
+#### Add movement mode #####
+birds$crawler <- 0
+birds$flier <- 1
+birds$walker <- 1
+birds$runner <- NA
+birds$swimmer <- ifelse(birds$Habitat %in% c('Wetland','Coastal','Marine','Riverine'), 1, 0)
+birds$jumper <- NA
+birds$climber <- NA
+
 ############ AMPHIBIANS ################
 amphi <- vert.trait[vert.trait$Class == 'Amphibia',]
 
 # Prep. Trochet DB
 trochet <- readxl::read_excel(here::here("data/Original/Traits/Trochet_et_al_2014_Amphibians/biodiversity_data_journal-2-e4123-s001.xlsx"), 
                               skip = 3)
+mmode <- trochet[, c('Species', 'Walker', 'Jumper','Runner', 'Climber','Swimmer', 'Crawler')]
 trochet <- trochet[trochet$`Maximum dispersal distance`!= 'DD',]
 trochet$`Maximum dispersal distance` <- as.numeric(trochet$`Maximum dispersal distance`)/1000
 trochet <- trochet[, c("Species", "Maximum dispersal distance")]
@@ -216,6 +265,7 @@ colnames(trochet)[2] <- 'dispersal_km'
 idx <- is.na(amphi$NAME_IUCN)
 amphi$NAME_IUCN[idx] <- amphi$SpeciesName[idx]
 syn <- check_syn(amphi$NAME_IUCN, trochet$Species)
+2
 syn$inDB <- syn$Synonym %in% trochet$Species
 syn <- syn[syn$inDB, ]
 amphi <- dplyr::left_join(amphi, syn[, c('Species','Synonym')], by = c('NAME_IUCN'='Species'))
@@ -230,10 +280,25 @@ sum(amphi$OldSpeciesName_Maiorano[idx] %in% trochet$Species)
 # Join to species list
 amphi <- dplyr::left_join(amphi, trochet, by = c("Species_Syn"="Species"))
 
+#### Add movement mode
+amphi <- dplyr::left_join(amphi, mmode, by = c("Species_Syn" = "Species"))
+amphi$crawler <- ifelse(amphi$Crawler == 'DD', NA, amphi$Crawler)
+amphi$flier <- 0
+amphi$walker <- ifelse(amphi$Walker == 'DD', NA, amphi$Walker)
+amphi$runner <- ifelse(amphi$Runner == 'DD', NA, amphi$Runner)
+amphi$swimmer <- ifelse(amphi$Swimmer == 'DD', NA, amphi$Swimmer)
+amphi$jumper <- ifelse(amphi$Jumper == 'DD', NA, amphi$Jumper)
+amphi$climber <- ifelse(amphi$Climber == 'DD', NA, amphi$Climber)
+
 ####### COMBINE THE FOUR DATAFRAMES ########
 col.tokeep <- intersect(colnames(mammals), colnames(birds))
 final <- rbind(mammals[, col.tokeep], birds[, col.tokeep], amphi[, col.tokeep], reptiles[, col.tokeep])
 final <- final[, !(colnames(final) %in% 'Species_Syn')]
+# Update mov mode
+colnames(final)[colnames(final) %in% c('crawler', 'flier','walker','runner','swimmer','jumper','climber')] <- paste0('mov.mode.', colnames(final)[colnames(final) %in% c('crawler', 'flier','walker','runner','swimmer','jumper','climber')])
+for (lb in grep('mov.mode', colnames(final))) {
+  final[,lb] <- as.numeric(unlist(final[, lb]))
+}
 
 # Calculate averaged disp. dist. when several available
 idx <- table(final$SpeciesName)
@@ -364,7 +429,7 @@ for (s in vert.snap$CD_REF_SPE_LEVEL) {
     }
   }
 
-openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-PressureTraits.xlsx'))
+openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-MoveMod-PressureTraits.xlsx'))
 
 
 #######################################
