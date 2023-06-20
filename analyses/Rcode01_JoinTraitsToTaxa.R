@@ -91,11 +91,14 @@ colnames(hab.pref.up)[2:30] <- paste0('hab.pref.',colnames(hab.pref.up)[2:30])
 # Join to trait DB 
 vert.trait <- dplyr::left_join(vert.trait, hab.pref.up, by = c('Code_old' = 'SppID'))
 
-######################################
-# Dispersal distance & movement mode
-######################################
+###########################################################
+# Dispersal distance, movement mode & reproductive traits
+###########################################################
 
+        ###############
 ########### MAMMALS ###############
+        ###############
+
 mammals <- vert.trait[vert.trait$Class == 'Mammalia',]
 
 # Prep. COMBINE ; mammals
@@ -143,16 +146,58 @@ mammals <- dplyr::left_join(mammals, comb, by = c("Species_Syn"="species"))
 
 # Add bats info 
 bats <- readr::read_csv(here::here("data/Original/Traits/EuroBaTrait/09_spatial_behaviour.csv"))
-bats <- bats[bats$verbatimTraitName %in% c("DispersalDistances","MaxRecordedMovement"), ]
-bats$verbatimScientificName <- gsub('_',' ',bats$verbatimScientificName)
+morpho <- readr::read_csv("data/Original/Traits/EuroBaTrait/03_morphology.csv")
 
-for (s in bats$verbatimScientificName) {
-  val <- bats$verbatimTraitValue[(bats$verbatimScientificName %in% s) & (bats$verbatimTraitName == 'DispersalDistances')]
-  if (length(val) == 0) { val <- bats$verbatimTraitValue[(bats$verbatimScientificName %in% s) & (bats$verbatimTraitName == 'MaxRecordedMovement')]}
+# try to find correlation between traits
+df <- bats[bats$verbatimTraitName == 'DispersalDistances', ]
+df <- df[, c('verbatimScientificName', 'verbatimTraitValue')]
+colnames(df) <- c('species', 'DD')
+test <- morpho[morpho$verbatimTraitName == "WingLoadingIndex", ]
+test <- test[, c('verbatimScientificName', 'verbatimTraitValue')]
+colnames(test) <- c('species', 'var.test')
+test$var.test <- as.numeric(test$var.test)
+df <- dplyr::left_join(df, test, by = 'species')
+mod <- lm(DD~ var.test, data = df)
+summary(mod)
+
+bats <- bats[bats$verbatimTraitName %in% c("DispersalDistances"), ]
+bats$verbatimScientificName <- gsub('_',' ',bats$verbatimScientificName)
+morpho <- morpho[morpho$verbatimTraitName == 'WingLoadingIndex', ]
+morpho$verbatimScientificName <- gsub('_',' ',morpho$verbatimScientificName)
+
+for (s in unique(c(bats$verbatimScientificName, morpho$verbatimScientificName))) {
+  val <- bats$verbatimTraitValue[(bats$verbatimScientificName %in% s)]
+  if (length(val) == 0) { 
+    val <- morpho$verbatimTraitValue[(morpho$verbatimScientificName %in% s)]
+    val <- -176.2 + 29.6 * val
+    }
   mammals$dispersal_km[mammals$SpeciesName %in% s] <- val
 }
 
+#### Add reproductive traits ####
+comb <- readr::read_csv(here::here("data/Original/Traits/COMBINE/trait_data_imputed.csv"))
+comb1 <- comb[, c('iucn2020_binomial', 'max_longevity_d', 'maturity_d', 'age_first_reproduction_d' , 'litter_size_n', 'litters_per_year_n')]
+colnames(comb1) <- c('species', 'max_longevity_d', 'maturity_d', 'age_first_reproduction_d' , 'litter_size_n', 'litters_per_year_n')
+comb2 <- comb[, c('phylacine_binomial', 'max_longevity_d', 'maturity_d', 'age_first_reproduction_d' , 'litter_size_n', 'litters_per_year_n')]
+colnames(comb2) <- c('species', 'max_longevity_d', 'maturity_d', 'age_first_reproduction_d' , 'litter_size_n', 'litters_per_year_n')
+comb <- rbind(comb1, comb2)
+comb <- dplyr::distinct(comb)
+double <- table(comb$species)
+subcomb <- comb[comb$species %in% names(double)[double > 1], ]
+comb <- comb[!(comb$species %in% names(double)[double > 1]), ]
+
+for (s in unique(subcomb$species)) {
+  ssubcomb <- subcomb[subcomb$species == s, ]
+  val = apply(ssubcomb[, 2:6], 2, mean)
+  ssubcomb <- cbind(data.frame(species = s), as.data.frame(t(val)))
+  comb <- rbind(comb, ssubcomb)
+}
+mammals <- dplyr::left_join(mammals, comb, by = c("Species_Syn"="species"))
+
+            ###############
 ############## REPTILES ##################
+            ###############
+
 reptiles <- vert.trait[vert.trait$Class == 'Reptilia',]
 
 # Prep. Escoriza 
@@ -211,7 +256,19 @@ for (s in unique(loco$sp.nme)) {
 # Synonyms ok 
 reptiles <- dplyr::left_join(reptiles, final, by = c("Species_Syn"="sp.nme"))
 
+
+#### Add reproductive traits #####
+# To do manually 
+reptiles$max_longevity_d <- NA
+reptiles$maturity_d <- NA
+reptiles$age_first_reproduction_d <- NA
+reptiles$litter_size_n <- NA
+reptiles$litters_per_year_n <- NA
+
+        ###############
 ############ BIRDS ################
+        ###############
+
 birds <- vert.trait[vert.trait$Class == 'Aves',]
 
 # Prep. AVONET
@@ -249,7 +306,22 @@ birds$swimmer <- ifelse(birds$Habitat %in% c('Wetland','Coastal','Marine','River
 birds$jumper <- NA
 birds$climber <- NA
 
+#### Add reproductive traits #####
+euroB <- readr::read_delim(here::here('data/Original/Traits/EuroBirds/Life-history characteristics of European birds.txt'))
+euroB <- euroB[, c('Species', 'Life span', 'Age of first breeding', 'Clutch_MEAN', 'Broods per year')]
+euroB$max_longevity_d <-  euroB$`Life span`*365.25
+euroB$maturity_d <- NA
+euroB$age_first_reproduction_d <- euroB$`Age of first breeding` * 365.25
+euroB$litter_size_n <- euroB$Clutch_MEAN
+euroB$litters_per_year_n <- euroB$`Broods per year`
+euroB <- euroB[, c("Species",  "max_longevity_d" , "maturity_d", "age_first_reproduction_d" ,
+                   "litter_size_n" , "litters_per_year_n")]
+birds <- dplyr::left_join(birds, euroB, by = c("SpeciesName" = "Species"))
+
+          ###############
 ############ AMPHIBIANS ################
+          ###############
+
 amphi <- vert.trait[vert.trait$Class == 'Amphibia',]
 
 # Prep. Trochet DB
@@ -290,6 +362,18 @@ amphi$swimmer <- ifelse(amphi$Swimmer == 'DD', NA, amphi$Swimmer)
 amphi$jumper <- ifelse(amphi$Jumper == 'DD', NA, amphi$Jumper)
 amphi$climber <- ifelse(amphi$Climber == 'DD', NA, amphi$Climber)
 
+#### Add reproductive trait
+amphibio <- readr::read_csv(here::here("data/Original/Traits/AmphiBIO/AmphiBIO_v1.csv"))
+amphibio <- amphibio[, c('Species', "Age_at_maturity_min_y", "Age_at_maturity_max_y", 'Longevity_max_y', "Litter_size_min_n", "Litter_size_max_n" ,"Reproductive_output_y" )]
+amphibio$max_longevity_d <- amphibio$Longevity_max_y *365.25
+amphibio$maturity_d <- 365.25*(amphibio$Age_at_maturity_min_y + amphibio$Age_at_maturity_max_y)/2
+amphibio$age_first_reproduction_d <- NA
+amphibio$litter_size_n <- (amphibio$Litter_size_min_n + amphibio$Litter_size_max_n)/2
+amphibio$litters_per_year_n <- amphibio$Reproductive_output_y
+amphibio <- amphibio[, c('Species', "max_longevity_d" , "maturity_d", "age_first_reproduction_d" ,
+                         "litter_size_n" , "litters_per_year_n")]
+amphi <- dplyr::left_join(amphi, amphibio, by = c("SpeciesName"="Species"))
+
 ####### COMBINE THE FOUR DATAFRAMES ########
 col.tokeep <- intersect(colnames(mammals), colnames(birds))
 final <- rbind(mammals[, col.tokeep], birds[, col.tokeep], amphi[, col.tokeep], reptiles[, col.tokeep])
@@ -299,6 +383,11 @@ colnames(final)[colnames(final) %in% c('crawler', 'flier','walker','runner','swi
 for (lb in grep('mov.mode', colnames(final))) {
   final[,lb] <- as.numeric(unlist(final[, lb]))
 }
+# Update colnames of life history traits
+colnames(final)[colnames(final) %in% c("max_longevity_d" , "maturity_d",  "age_first_reproduction_d", "litter_size_n", "litters_per_year_n")] <- 
+  paste0('life.hist.', colnames(final)[colnames(final) %in% c("max_longevity_d" , "maturity_d",  "age_first_reproduction_d", "litter_size_n", "litters_per_year_n")])
+# Calculate litter_size_per_year 
+final$life.hist.offspring_per_year_n <- final$life.hist.litter_size_n * final$life.hist.litters_per_year_n
 
 # Calculate averaged disp. dist. when several available
 idx <- table(final$SpeciesName)
@@ -314,6 +403,14 @@ for (s in names(idx)[idx != 1]) {
   }
 
 summary(final)
+
+# Calculate diet breadth and habitat breadth 
+val <- final[, grep('diet.', colnames(final))]
+final$diet.breadth <- apply(val, 1, sum)
+val <- final[, grep('hab.pref.', colnames(final))]
+final$hab.pref.breadth <- apply(val, 1, sum)
+val <- final[, grep('nest.hab.', colnames(final))]
+final$nest.hab.breadth <- apply(val, 1, sum)
 
 ######## COMPARE TO SNAP SPECIES ##########
 # Select vertebrates
@@ -429,7 +526,39 @@ for (s in vert.snap$CD_REF_SPE_LEVEL) {
     }
   }
 
-openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-MoveMod-PressureTraits.xlsx'))
+
+##########################
+# Final manual updates 
+########################## 
+
+# Move mode
+vert.snap$mov.mode.crawler[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossus sardus'] <- 0 # https://doris.ffessm.fr/Especes/Discoglossus-spp.-Discoglosse-sarde-et-discoglosse-corse-3629 ; proche de Alytes obstetricans et Bombina variegata 
+vert.snap$mov.mode.swimmer[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossus sardus'] <- 1
+vert.snap$mov.mode.walker[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossus sardus'] <- 1
+
+# Age first repro
+mod <- lm(vert.snap$life.hist.age_first_reproduction_d ~ vert.snap$life.hist.maturity_d)
+summary(mod)
+vert.snap$life.hist.age_first_reproduction_d[is.na(vert.snap$life.hist.age_first_reproduction_d)] <- 84.58 + 1.03*vert.snap$life.hist.maturity_d[is.na(vert.snap$life.hist.age_first_reproduction_d)]
+
+vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 9 # Rept de France 
+vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 1
+vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 9
+vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 3.5*365.25 
+
+vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 10 # Rept de France 
+vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 1
+vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 10
+vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- ?
+
+vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 11 # Rept de France 
+vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 1
+vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 11
+vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 4*365.25
+  
+  
+
+openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-MoveMod-LifeHist-PressureTraits.xlsx'))
 
 
 #######################################
