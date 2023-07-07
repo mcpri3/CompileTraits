@@ -402,6 +402,34 @@ for (s in names(idx)[idx != 1]) {
   final <- rbind(final, tokeep)
   }
 
+# Dispersal distance estimated by Dirk Karger for FutureWeb
+lst.files <- list.files(here::here('data/Original/Traits/futureweb_ImputedDD/data/'))
+lst.files <- lst.files[grep('imputation', lst.files)]
+lst.files <- lst.files[-grep('statistics', lst.files)]
+dd.imput <- data.frame()
+for (l in lst.files) {
+  dta <- read.delim(here::here(paste0('data/Original/Traits/futureweb_ImputedDD/data/', l)), sep = ' ')
+  dd.imput <- rbind(dd.imput, dta)
+}
+idx <- table(dd.imput$spec_name)
+idx <- idx[idx>1]
+dd.imput.ok <- dd.imput[!(dd.imput$spec_name %in% names(idx)), ]
+
+for (nme in names(idx)) {
+  tocheck <- dd.imput[dd.imput$spec_name == nme, ]
+  tocheck <- tocheck[!is.na(tocheck$Sp.code),]
+  dd.imput.ok <- rbind(dd.imput.ok, tocheck)  
+}
+
+dd.missing <- final[is.na(final$dispersal_km),]
+for (i in 1:nrow(dd.missing)){
+  sp.nme <- dd.missing$SpeciesName[i]
+  val <- dd.imput.ok$max_disp_m[dd.imput.ok$spec_name == sp.nme]/1000
+  if (length(val)!= 0) {dd.missing$dispersal_km[i] <- val}
+}
+final <- final[!is.na(final$dispersal_km),]
+final <- rbind(final, dd.missing)
+
 summary(final)
 
 # Calculate diet breadth and habitat breadth 
@@ -422,9 +450,10 @@ vert.snap <- myData[myData$GROUP2_INPN %in% c('Mammifères', 'Reptiles', 'Amphib
 
 # Manually updated species names from comparing 'SpeciesName', 'NAME_IUCN' and 'OldSpeciesName_Maiorano'
 toreplace <- data.frame(LB_NOM_VALIDE_SPE_LEVEL = c("Dendrocopos medius", "Dendrocopos minor", "Pelophylax kl. grafi", "Lyrurus tetrix", 'Ovis gmelinii',
-                                                   'Bonasa bonasia', 'Muscicapa tyrrhenica', 'Psammodromus edwarsianus'), 
+                                                   'Bonasa bonasia', 'Muscicapa tyrrhenica', 'Psammodromus edwarsianus', 'Natrix helvetica'), 
                        LB_NOM_VALIDE_SPE_LEVEL_SYN = c("Dendrocoptes medius", "Dryobates minor", "Pelophylax grafi", "Tetrao tetrix", 'Ovis gmelini', 'Tetrastes bonasia', 
-                                                       'Muscicapa striata', 'Psammodromus edwardsianus'))
+                                                       'Muscicapa striata', 'Psammodromus edwardsianus', 'Natrix natrix'))
+
 vert.snap <- dplyr::left_join(vert.snap, toreplace, by = c("LB_NOM_VALIDE_SPE_LEVEL"))
 vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN <- ifelse(is.na(vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN), vert.snap$LB_NOM_VALIDE_SPE_LEVEL, vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN)
 
@@ -436,18 +465,18 @@ vert.snap <- dplyr::left_join(vert.snap, final, by = c("LB_NOM_VALIDE_SPE_LEVEL_
 ##############################
 
 # get national red list 
-iucn.nat <- openxlsx::read.xlsx(here::here('data/Original/Pressures/LISTE_ROUGE_FAUNE_200916_Table_Menaces_LRN_v2.xlsx'))
-# TAXREF to add species name and CD_REF
-taxref.full <- utils::read.csv(here::here('data/Original/Taxa/TAXREFv16.csv'), header = T, sep = ";")
-taxref <- taxref.full[taxref.full$CD_NOM %in% iucn.nat$CD_NOM, ]
-taxref <- taxref[, c('CD_NOM','CD_REF')]
-colnames(taxref)[colnames(taxref) == "CD_REF"] <- "CD_REF_V16TAXREF"
-iucn.nat <- dplyr::left_join(iucn.nat, taxref, by = 'CD_NOM')
-iucn.nat <- iucn.nat[!is.na(iucn.nat$CD_REF_V16TAXREF),]
-iucn.nat <- iucn.nat[iucn.nat$Code_Menaces != '', ]
-iucn.nat <- iucn.nat[iucn.nat$CD_REF_V16TAXREF %in% c(vert.snap$CD_REF_SPE_LEVEL), ]
-
-# get European red list (to run once)
+# iucn.nat <- openxlsx::read.xlsx(here::here('data/Original/Pressures/LISTE_ROUGE_FAUNE_200916_Table_Menaces_LRN_v2.xlsx'))
+# # TAXREF to add species name and CD_REF
+# taxref.full <- utils::read.csv(here::here('data/Original/Taxa/TAXREFv16.csv'), header = T, sep = ";")
+# taxref <- taxref.full[taxref.full$CD_NOM %in% iucn.nat$CD_NOM, ]
+# taxref <- taxref[, c('CD_NOM','CD_REF')]
+# colnames(taxref)[colnames(taxref) == "CD_REF"] <- "CD_REF_V16TAXREF"
+# iucn.nat <- dplyr::left_join(iucn.nat, taxref, by = 'CD_NOM')
+# iucn.nat <- iucn.nat[!is.na(iucn.nat$CD_REF_V16TAXREF),]
+# iucn.nat <- iucn.nat[iucn.nat$Code_Menaces != '', ]
+# iucn.nat <- iucn.nat[iucn.nat$CD_REF_V16TAXREF %in% c(vert.snap$CD_REF_SPE_LEVEL), ]
+# 
+# # get European red list (to run once)
 # lst.sp <- unique(vert.snap$NAME_IUCN[!is.na(vert.snap$NAME_IUCN)])
 # press.euro <- data.frame()
 # pb <- utils::txtProgressBar(min = 0,      # Minimum value of the progress bar
@@ -457,10 +486,10 @@ iucn.nat <- iucn.nat[iucn.nat$CD_REF_V16TAXREF %in% c(vert.snap$CD_REF_SPE_LEVEL
 #                             char = "=")
 # 
 # for (s in lst.sp) {
-#   
+# 
 #   thre <- rredlist::rl_threats(name = s, region = 'europe', key = 'd434eb1c13e1c936fe9d9961f7f197ebf4b4c5d2cbd4a2e53608ea965c3f052e')
 #   thre <- thre$result
-#   thre$NAME_IUCN <- s 
+#   thre$NAME_IUCN <- s
 #   if (length(thre)>1) {
 #     press.euro <- rbind(press.euro, thre)
 #   }
@@ -536,28 +565,26 @@ vert.snap$mov.mode.crawler[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossu
 vert.snap$mov.mode.swimmer[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossus sardus'] <- 1
 vert.snap$mov.mode.walker[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Discoglossus sardus'] <- 1
 
+vert.snap$mov.mode.crawler[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra lanzai'] <- 0 #https://inpn.mnhn.fr/espece/cd_nom/699127
+vert.snap$mov.mode.swimmer[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra lanzai'] <- 1
+vert.snap$mov.mode.walker[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra lanzai'] <- 1
+
+vert.snap$mov.mode.crawler[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra atra'] <- 0 #https://inpn.mnhn.fr/espece/cd_nom/701819
+vert.snap$mov.mode.swimmer[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra atra'] <- 1
+vert.snap$mov.mode.walker[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Salamandra atra'] <- 1
+
+# Life-hist (Numb. offspring) & pressure (species for which we know we have occurrence data but missing traits)
+updates <- openxlsx::read.xlsx(here::here('data/Original/Traits/ManualImplementation-of-missing-traits.xlsx'))
+updates <- updates[, colnames(updates) %in% colnames(vert.snap)]
+vert.snap <- vert.snap[!(vert.snap$CD_REF_SPE_LEVEL %in% updates$CD_REF_SPE_LEVEL),]
+vert.snap <- rbind(vert.snap, updates) 
+
 # Age first repro
 mod <- lm(vert.snap$life.hist.age_first_reproduction_d ~ vert.snap$life.hist.maturity_d)
 summary(mod)
-vert.snap$life.hist.age_first_reproduction_d[is.na(vert.snap$life.hist.age_first_reproduction_d)] <- 84.58 + 1.03*vert.snap$life.hist.maturity_d[is.na(vert.snap$life.hist.age_first_reproduction_d)]
+vert.snap$life.hist.age_first_reproduction_d[is.na(vert.snap$life.hist.age_first_reproduction_d)] <- 85.6 + 1.03*vert.snap$life.hist.maturity_d[is.na(vert.snap$life.hist.age_first_reproduction_d)]
 
-vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 9 # Rept de France 
-vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 1
-vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 9
-vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Coronella austriaca'] <- 3.5*365.25 
-
-vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 10 # Rept de France 
-vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 1
-vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- 10
-vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Hierophis viridiflavus'] <- ?
-
-vert.snap$life.hist.litter_size_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 11 # Rept de France 
-vert.snap$life.hist.litters_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 1
-vert.snap$life.hist.offspring_per_year_n[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 11
-vert.snap$life.hist.age_first_reproduction_d[vert.snap$LB_NOM_VALIDE_SPE_LEVEL_SYN == 'Zamenis longissimus'] <- 4*365.25
-  
-  
-
+# Save final DF 
 openxlsx::write.xlsx(vert.snap, here::here('data/Modified/SNAP-Vertebrate-Species_ActT-Diet-ForagS-NestH-Morpho-HabPref-DispD-MoveMod-LifeHist-PressureTraits.xlsx'))
 
 
